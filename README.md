@@ -52,6 +52,12 @@ też wywołać seed ręcznie:
 python seed.py
 ```
 
+> **Aktualizacja schematu `users`:** jeśli masz już plik `backend/hardware.db`
+> z wcześniejszej wersji projektu (kolumna `password` zamiast
+> `hashed_password`), usuń go przed ponownym startem serwera — SQLAlchemy nie
+> robi automatycznych migracji, a stara tabela `users` jest niekompatybilna
+> z nowym modelem.
+
 API dostępne pod `http://localhost:8000`, dokumentacja Swaggera pod
 `http://localhost:8000/docs`.
 
@@ -67,22 +73,30 @@ Aplikacja wystartuje na `http://localhost:5173` i komunikuje się z
 backendem pod adresem zdefiniowanym w `frontend/.env`
 (`VITE_API_URL=http://localhost:8000/api`).
 
-## Logowanie demo
+## Logowanie — system zamknięty (Closed System)
 
-- **Admin:** `demo@booksy.com` / `demo123` — pełny dostęp do "Admin Panel".
-- **Zwykły użytkownik:** dowolny email z domeny `@booksy.com` (np.
-  `j.doe@booksy.com`) z dowolnym niepustym hasłem — loguje jako rola `user`
-  (bez dostępu do Admin Panel). Dzięki temu można od razu zobaczyć
-  wypożyczenie słuchawek Sony przypisane do `j.doe@booksy.com` w "My Rentals".
+Nie istnieje żadna rejestracja/self-service sign-up. Jedynym sposobem
+uzyskania dostępu do systemu jest utworzenie konta przez admina w zakładce
+**Admin Panel → Users**. Hasła są hashowane (`passlib` + `bcrypt`) i
+przechowywane w tabeli `users`; logowanie fizycznie porównuje hash w bazie.
 
-Frontend waliduje domenę email (`@booksy.com`) już po stronie klienta;
-backend dodatkowo weryfikuje to samo jako zabezpieczenie.
+- **Admin (seed):** `demo@booksy.com` / `demo123` — pełny dostęp do
+  "Admin Panel" (jedyne konto z rolą `admin`).
+- **Nowi użytkownicy:** admin tworzy konta w zakładce "Users" (pola Email +
+  Password) — trafiają do bazy z rolą `user` (dostęp do "Hardware List" i
+  "My Rentals", bez dostępu do Admin Panelu).
+
+Frontend waliduje domenę email (`@booksy.com`) po stronie klienta; backend
+dodatkowo weryfikuje to samo (przy logowaniu i przy tworzeniu konta) jako
+zabezpieczenie.
 
 ## Endpointy API
 
 | Metoda | Ścieżka                        | Opis                                   |
 |--------|---------------------------------|-----------------------------------------|
-| POST   | `/api/auth/login`               | Mock logowania                          |
+| POST   | `/api/auth/login`               | Logowanie (weryfikacja hasha w DB)      |
+| GET    | `/api/users`                     | Lista kont użytkowników (Admin)         |
+| POST   | `/api/users`                     | Utworzenie nowego konta (Admin)         |
 | GET    | `/api/devices`                  | Lista urządzeń                          |
 | GET    | `/api/devices/{id}`             | Szczegóły urządzenia                    |
 | POST   | `/api/devices`                  | Dodanie urządzenia (Admin)              |
@@ -93,6 +107,9 @@ backend dodatkowo weryfikuje to samo jako zabezpieczenie.
 | POST   | `/api/devices/{id}/return`      | Zwrot urządzenia                        |
 | GET    | `/api/rentals?email=...`        | Lista wypożyczeń danego użytkownika     |
 
-> Uwaga: autoryzacja jest zamockowana (brak JWT/sesji) — wystarczająca dla
-> zakresu MVP. Ograniczenie dostępu do Admin Panelu odbywa się na poziomie
-> UI (router guard) na podstawie roli zwróconej przy logowaniu.
+> Uwaga: logowanie realnie weryfikuje email + hash hasła w tabeli `users`,
+> ale nie ma jeszcze prawdziwego JWT/sesji (token zwracany przez
+> `/api/auth/login` jest placeholderem) — wystarczające dla zakresu MVP.
+> Ograniczenie dostępu do Admin Panelu odbywa się na poziomie UI (router
+> guard) na podstawie roli zwróconej przy logowaniu; endpointy `/api/users`
+> i CRUD urządzeń nie są jeszcze chronione po stronie serwera.

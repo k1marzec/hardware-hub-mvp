@@ -28,6 +28,15 @@ export const authApi = {
   },
 }
 
+export const userApi = {
+  list() {
+    return request('/users')
+  },
+  create(email, password) {
+    return request('/users', { method: 'POST', body: { email, password } })
+  },
+}
+
 export const deviceApi = {
   list() {
     return request('/devices')
@@ -46,6 +55,9 @@ export const deviceApi = {
   },
   sendToRepair(id) {
     return request(`/devices/${id}/repair`, { method: 'PATCH' })
+  },
+  restoreFromRepair(id) {
+    return request(`/devices/${id}/restore`, { method: 'PATCH' })
   },
   rent(id, email) {
     return request(`/devices/${id}/rent`, { method: 'POST', body: { email } })

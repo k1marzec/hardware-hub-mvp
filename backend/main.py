@@ -1,8 +1,16 @@
 """FastAPI application exposing the Hardware Management REST API.
 
-Auth is intentionally a simple mock (no JWT/session infra) — enough to
-demonstrate the login flow and gate the Admin endpoints at the UI level, per
-the MVP scope requested. Do not use this auth approach in production.
+This is a *closed system*: there is no self-service sign-up. The only way to
+obtain a login is for an admin to create an account via `POST /api/users`
+(surfaced in the Admin Panel's "Users" tab). Login performs a real lookup +
+bcrypt hash comparison against the `users` table — no more mock fallback.
+
+There is still no JWT/session infra (the "token" returned by login is a
+placeholder string) and Admin-only endpoints aren't enforced server-side —
+access to the Admin Panel is gated at the UI level based on the logged-in
+user's role. That's an acceptable trade-off for this MVP's scope, but would
+need to be hardened (real tokens + server-side role checks) before shipping
+to production.
 """
 
 from datetime import date
@@ -14,6 +22,7 @@ from sqlalchemy.orm import Session
 
 import models
 import schemas
+import security
 from database import get_db
 from seed import run_seed
 
@@ -55,21 +64,49 @@ def login(payload: schemas.LoginRequest, db: Session = Depends(get_db)):
 
     user = db.query(models.User).filter(models.User.email == email).first()
 
-    if user is not None:
-        if user.password != payload.password:
-            raise HTTPException(status_code=401, detail="Invalid email or password")
-        role = user.role
-    else:
-        # Mock behaviour: any other @booksy.com address logs in as a
-        # regular (non-admin) user, as long as a password was provided.
-        if not payload.password:
-            raise HTTPException(status_code=401, detail="Invalid email or password")
-        role = "user"
+    # Closed system: no account -> no access. Same generic error is used for
+    # "unknown email" and "wrong password" so we don't leak which one it was.
+    if user is None or not security.verify_password(payload.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
 
     return schemas.LoginResponse(
-        user=schemas.UserOut(email=email, role=role),
+        user=schemas.UserOut.model_validate(user),
         token=f"mock-token-{email}",
     )
+
+
+# --------------------------------------------------------------------------
+# Users - accounts management (Admin "Manage Accounts")
+# --------------------------------------------------------------------------
+
+
+@app.get("/api/users", response_model=List[schemas.UserOut])
+def list_users(db: Session = Depends(get_db)):
+    return db.query(models.User).order_by(models.User.id).all()
+
+
+@app.post("/api/users", response_model=schemas.UserOut, status_code=201)
+def create_user(payload: schemas.UserCreate, db: Session = Depends(get_db)):
+    email = payload.email.lower()
+
+    if not email.endswith("@booksy.com"):
+        raise HTTPException(
+            status_code=400, detail="Invalid domain. Please use @booksy.com"
+        )
+
+    existing = db.query(models.User).filter(models.User.email == email).first()
+    if existing is not None:
+        raise HTTPException(status_code=400, detail="A user with this email already exists")
+
+    user = models.User(
+        email=email,
+        hashed_password=security.hash_password(payload.password),
+        role="user",
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
 
 
 # --------------------------------------------------------------------------
@@ -142,6 +179,20 @@ def send_to_repair(device_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Device not found")
 
     device.status = "Repair"
+    db.commit()
+    db.refresh(device)
+    return device
+
+
+@app.patch("/api/devices/{device_id}/restore", response_model=schemas.DeviceOut)
+def restore_from_repair(device_id: int, db: Session = Depends(get_db)):
+    """Reverses "Send to Repair": puts the device back into the Available pool."""
+    device = db.query(models.Device).filter(models.Device.id == device_id).first()
+    if device is None:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    device.status = "Available"
+    device.assignedTo = None
     db.commit()
     db.refresh(device)
     return device

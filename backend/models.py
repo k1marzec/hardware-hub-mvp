@@ -30,13 +30,15 @@ class Device(Base):
 
 
 class User(Base):
-    """Minimal user table used for the mock authentication flow."""
+    """Accounts table backing the closed-system login.
+
+    Creating a row here (via POST /api/users) is the *only* way to gain
+    access to the app — there is no self-service sign-up.
+    """
 
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
-    # Plaintext on purpose: this is a mock login for the MVP, not a real
-    # security-hardened auth system.
-    password = Column(String, nullable=False)
+    hashed_password = Column(String, nullable=False)
     role = Column(String, nullable=False, default="user")

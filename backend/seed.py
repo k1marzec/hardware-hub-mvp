@@ -13,6 +13,7 @@ import json
 from pathlib import Path
 
 import models
+import security
 from database import Base, SessionLocal, engine
 
 ADMIN_EMAIL = "demo@booksy.com"
@@ -69,7 +70,11 @@ def seed_admin(db) -> bool:
     if existing:
         return False
 
-    admin = models.User(email=ADMIN_EMAIL, password=ADMIN_PASSWORD, role="admin")
+    admin = models.User(
+        email=ADMIN_EMAIL,
+        hashed_password=security.hash_password(ADMIN_PASSWORD),
+        role="admin",
+    )
     db.add(admin)
     db.commit()
     return True

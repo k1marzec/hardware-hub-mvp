@@ -48,7 +48,13 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: str
+
+
 class UserOut(BaseModel):
+    id: int
     email: str
     role: str
 
