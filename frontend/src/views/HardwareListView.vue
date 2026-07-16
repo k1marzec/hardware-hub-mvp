@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 
 import StatusBadge from '../components/StatusBadge.vue'
 import { deviceApi } from '../services/api'
@@ -10,7 +10,31 @@ const { user } = useAuth()
 const devices = ref([])
 const loading = ref(true)
 const error = ref('')
-const rentingId = ref(null)
+const actionId = ref(null)
+
+function isMine(device) {
+  return !!user.value && (device.assignedTo || '').toLowerCase() === user.value.email.toLowerCase()
+}
+
+// Decides what the action button should look like/do for a given device,
+// mirroring the backend's rent/return state guards so the UI never offers
+// an action the API would reject.
+function actionFor(device) {
+  if (device.status === 'Available') {
+    return { label: 'Rent', disabled: false, variant: 'primary', handler: handleRent }
+  }
+  if (device.status === 'In Use') {
+    return isMine(device)
+      ? { label: 'Return', disabled: false, variant: 'secondary', handler: handleReturn }
+      : { label: 'Rented', disabled: true, variant: 'disabled', handler: null }
+  }
+  if (device.status === 'Repair') {
+    return { label: 'In Repair', disabled: true, variant: 'disabled', handler: null }
+  }
+  return { label: 'Unavailable', disabled: true, variant: 'disabled', handler: null }
+}
+
+const rows = computed(() => devices.value.map((device) => ({ device, action: actionFor(device) })))
 
 async function loadDevices() {
   loading.value = true
@@ -25,8 +49,8 @@ async function loadDevices() {
 }
 
 async function handleRent(device) {
-  if (device.status !== 'Available' || !user.value) return
-  rentingId.value = device.id
+  if (!user.value) return
+  actionId.value = device.id
   error.value = ''
   try {
     await deviceApi.rent(device.id, user.value.email)
@@ -34,8 +58,27 @@ async function handleRent(device) {
   } catch (err) {
     error.value = err.message
   } finally {
-    rentingId.value = null
+    actionId.value = null
   }
+}
+
+async function handleReturn(device) {
+  actionId.value = device.id
+  error.value = ''
+  try {
+    await deviceApi.return(device.id)
+    await loadDevices()
+  } catch (err) {
+    error.value = err.message
+  } finally {
+    actionId.value = null
+  }
+}
+
+function handleAction(device) {
+  const action = actionFor(device)
+  if (action.disabled || !action.handler || actionId.value === device.id) return
+  action.handler(device)
 }
 
 onMounted(loadDevices)
@@ -78,26 +121,28 @@ onMounted(loadDevices)
           <tr v-if="loading">
             <td colspan="5" class="px-5 py-6 text-center text-gray-400">Loading devices…</td>
           </tr>
-          <tr v-else-if="devices.length === 0">
+          <tr v-else-if="rows.length === 0">
             <td colspan="5" class="px-5 py-6 text-center text-gray-400">No devices found.</td>
           </tr>
-          <tr v-for="device in devices" :key="device.id" class="text-gray-900">
-            <td class="px-5 py-3 font-medium">{{ device.name }}</td>
-            <td class="px-5 py-3 text-gray-500">{{ device.brand || '—' }}</td>
-            <td class="px-5 py-3 text-gray-500">{{ device.purchaseDate || '—' }}</td>
-            <td class="px-5 py-3"><StatusBadge :status="device.status" /></td>
+          <tr v-for="row in rows" :key="row.device.id" class="text-gray-900">
+            <td class="px-5 py-3 font-medium">{{ row.device.name }}</td>
+            <td class="px-5 py-3 text-gray-500">{{ row.device.brand || '—' }}</td>
+            <td class="px-5 py-3 text-gray-500">{{ row.device.purchaseDate || '—' }}</td>
+            <td class="px-5 py-3"><StatusBadge :status="row.device.status" /></td>
             <td class="px-5 py-3 text-right">
               <button
-                :disabled="device.status !== 'Available' || rentingId === device.id"
+                :disabled="row.action.disabled || actionId === row.device.id"
                 class="rounded-lg px-4 py-1.5 text-xs font-semibold transition"
                 :class="
-                  device.status === 'Available'
-                    ? 'bg-gray-900 text-white hover:bg-black'
-                    : 'cursor-not-allowed bg-gray-200 text-gray-400'
+                  row.action.disabled
+                    ? 'cursor-not-allowed bg-gray-200 text-gray-400'
+                    : row.action.variant === 'secondary'
+                      ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      : 'bg-gray-900 text-white hover:bg-black'
                 "
-                @click="handleRent(device)"
+                @click="handleAction(row.device)"
               >
-                {{ rentingId === device.id ? 'Renting…' : 'Rent' }}
+                {{ actionId === row.device.id ? 'Please wait…' : row.action.label }}
               </button>
             </td>
           </tr>

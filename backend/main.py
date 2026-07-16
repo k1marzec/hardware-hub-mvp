@@ -199,8 +199,18 @@ def restore_from_repair(device_id: int, db: Session = Depends(get_db)):
 
 
 # --------------------------------------------------------------------------
-# Devices - rentals
+# Devices - rental engine (Rent / Return) with hard state guards
 # --------------------------------------------------------------------------
+#
+# Valid transitions:
+#   Available -> (rent)   -> In Use
+#   In Use    -> (return) -> Available
+#
+# Any other starting state is rejected with a 400 so the frontend can never
+# push a device into an inconsistent state, even if a stale UI tries to.
+
+# Statuses from which a device can never be rented directly.
+RENT_BLOCKED_STATUSES = {"Repair", "In Use"}
 
 
 @app.post("/api/devices/{device_id}/rent", response_model=schemas.DeviceOut)
@@ -210,8 +220,13 @@ def rent_device(
     device = db.query(models.Device).filter(models.Device.id == device_id).first()
     if device is None:
         raise HTTPException(status_code=404, detail="Device not found")
-    if device.status != "Available":
-        raise HTTPException(status_code=400, detail="Device is not available for rent")
+
+    # Guard: can't rent hardware that's being repaired or already checked out.
+    if device.status in RENT_BLOCKED_STATUSES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Device cannot be rented while its status is '{device.status}'",
+        )
 
     device.status = "In Use"
     device.assignedTo = payload.email.lower()
@@ -225,6 +240,13 @@ def return_device(device_id: int, db: Session = Depends(get_db)):
     device = db.query(models.Device).filter(models.Device.id == device_id).first()
     if device is None:
         raise HTTPException(status_code=404, detail="Device not found")
+
+    # Guard: only a device that's actually checked out can be returned.
+    if device.status != "In Use":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Device cannot be returned because its status is '{device.status}', not 'In Use'",
+        )
 
     device.status = "Available"
     device.assignedTo = None
