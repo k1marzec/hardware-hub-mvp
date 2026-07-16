@@ -1,0 +1,197 @@
+"""FastAPI application exposing the Hardware Management REST API.
+
+Auth is intentionally a simple mock (no JWT/session infra) — enough to
+demonstrate the login flow and gate the Admin endpoints at the UI level, per
+the MVP scope requested. Do not use this auth approach in production.
+"""
+
+from datetime import date
+from typing import List
+
+from fastapi import Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
+
+import models
+import schemas
+from database import get_db
+from seed import run_seed
+
+app = FastAPI(title="Hardware Management API", version="1.0.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.on_event("startup")
+def on_startup() -> None:
+    # Creates tables (if needed) and loads hardware_data.json + demo admin
+    # the very first time the API starts, so `uvicorn main:app` alone is
+    # enough to get a working, populated backend.
+    run_seed()
+
+
+# --------------------------------------------------------------------------
+# Auth
+# --------------------------------------------------------------------------
+
+
+@app.post("/api/auth/login", response_model=schemas.LoginResponse)
+def login(payload: schemas.LoginRequest, db: Session = Depends(get_db)):
+    email = payload.email.lower()
+
+    if not email.endswith("@booksy.com"):
+        raise HTTPException(
+            status_code=400, detail="Invalid domain. Please use @booksy.com"
+        )
+
+    user = db.query(models.User).filter(models.User.email == email).first()
+
+    if user is not None:
+        if user.password != payload.password:
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        role = user.role
+    else:
+        # Mock behaviour: any other @booksy.com address logs in as a
+        # regular (non-admin) user, as long as a password was provided.
+        if not payload.password:
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        role = "user"
+
+    return schemas.LoginResponse(
+        user=schemas.UserOut(email=email, role=role),
+        token=f"mock-token-{email}",
+    )
+
+
+# --------------------------------------------------------------------------
+# Devices - read
+# --------------------------------------------------------------------------
+
+
+@app.get("/api/devices", response_model=List[schemas.DeviceOut])
+def list_devices(db: Session = Depends(get_db)):
+    return db.query(models.Device).order_by(models.Device.id).all()
+
+
+@app.get("/api/devices/{device_id}", response_model=schemas.DeviceOut)
+def get_device(device_id: int, db: Session = Depends(get_db)):
+    device = db.query(models.Device).filter(models.Device.id == device_id).first()
+    if device is None:
+        raise HTTPException(status_code=404, detail="Device not found")
+    return device
+
+
+# --------------------------------------------------------------------------
+# Devices - admin CRUD
+# --------------------------------------------------------------------------
+
+
+@app.post("/api/devices", response_model=schemas.DeviceOut, status_code=201)
+def create_device(payload: schemas.DeviceCreate, db: Session = Depends(get_db)):
+    data = payload.model_dump()
+    if not data.get("purchaseDate"):
+        data["purchaseDate"] = date.today().isoformat()
+
+    device = models.Device(**data)
+    db.add(device)
+    db.commit()
+    db.refresh(device)
+    return device
+
+
+@app.put("/api/devices/{device_id}", response_model=schemas.DeviceOut)
+def update_device(
+    device_id: int, payload: schemas.DeviceUpdate, db: Session = Depends(get_db)
+):
+    device = db.query(models.Device).filter(models.Device.id == device_id).first()
+    if device is None:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(device, key, value)
+
+    db.commit()
+    db.refresh(device)
+    return device
+
+
+@app.delete("/api/devices/{device_id}", status_code=204)
+def delete_device(device_id: int, db: Session = Depends(get_db)):
+    device = db.query(models.Device).filter(models.Device.id == device_id).first()
+    if device is None:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    db.delete(device)
+    db.commit()
+    return None
+
+
+@app.patch("/api/devices/{device_id}/repair", response_model=schemas.DeviceOut)
+def send_to_repair(device_id: int, db: Session = Depends(get_db)):
+    device = db.query(models.Device).filter(models.Device.id == device_id).first()
+    if device is None:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    device.status = "Repair"
+    db.commit()
+    db.refresh(device)
+    return device
+
+
+# --------------------------------------------------------------------------
+# Devices - rentals
+# --------------------------------------------------------------------------
+
+
+@app.post("/api/devices/{device_id}/rent", response_model=schemas.DeviceOut)
+def rent_device(
+    device_id: int, payload: schemas.RentRequest, db: Session = Depends(get_db)
+):
+    device = db.query(models.Device).filter(models.Device.id == device_id).first()
+    if device is None:
+        raise HTTPException(status_code=404, detail="Device not found")
+    if device.status != "Available":
+        raise HTTPException(status_code=400, detail="Device is not available for rent")
+
+    device.status = "In Use"
+    device.assignedTo = payload.email.lower()
+    db.commit()
+    db.refresh(device)
+    return device
+
+
+@app.post("/api/devices/{device_id}/return", response_model=schemas.DeviceOut)
+def return_device(device_id: int, db: Session = Depends(get_db)):
+    device = db.query(models.Device).filter(models.Device.id == device_id).first()
+    if device is None:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    device.status = "Available"
+    device.assignedTo = None
+    db.commit()
+    db.refresh(device)
+    return device
+
+
+@app.get("/api/rentals", response_model=List[schemas.DeviceOut])
+def my_rentals(email: str, db: Session = Depends(get_db)):
+    return (
+        db.query(models.Device)
+        .filter(models.Device.assignedTo == email.lower())
+        .order_by(models.Device.id)
+        .all()
+    )
+
+
+@app.get("/api/health")
+def health_check():
+    return {"status": "ok"}
