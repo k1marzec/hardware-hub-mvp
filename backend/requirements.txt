@@ -1,7 +1,19 @@
-fastapi==0.115.0
-uvicorn[standard]==0.30.6
+# fastapi/uvicorn/pydantic are left as minimum-version constraints (not exact
+# pins) on purpose, so pip's resolver has room to pick one mutually-compatible
+# set with whatever their other dependencies (e.g. `openai`) need.
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.6
 sqlalchemy==2.0.35
-pydantic==2.9.2
+pydantic>=2.9.2
 email-validator==2.2.0
 passlib==1.7.4
 bcrypt==4.0.1
+
+# Inventory Auditor (see auditor.py) - one-shot Chat Completions call
+# (json_object response format) sent to OpenRouter (https://openrouter.ai),
+# using the `openai` package as an OpenAI-API-compatible client pointed at
+# OpenRouter's base URL - no separate OpenRouter SDK needed. Left unpinned to
+# a minimum version since it moves fast; run `pip install -U openai` if you
+# hit an API mismatch.
+openai>=1.40.0
+python-dotenv>=1.0.1

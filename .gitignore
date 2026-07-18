@@ -4,6 +4,7 @@ backend/*.pyc
 backend/hardware.db
 backend/.venv/
 backend/venv/
+backend/.env
 
 # Frontend
 frontend/node_modules/

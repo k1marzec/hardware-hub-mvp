@@ -17,6 +17,9 @@ const form = reactive({
   serialNumber: '',
   brand: '',
   category: '',
+  issue: '',
+  notes: '',
+  history: '',
 })
 
 function resetForm(device) {
@@ -24,6 +27,9 @@ function resetForm(device) {
   form.serialNumber = device?.serialNumber ?? ''
   form.brand = device?.brand ?? ''
   form.category = device?.category ?? ''
+  form.issue = device?.issue ?? ''
+  form.notes = device?.notes ?? ''
+  form.history = device?.history ?? ''
 }
 
 watch(() => props.device, resetForm, { immediate: true })
@@ -47,7 +53,7 @@ function submit() {
 
 <template>
   <div v-if="modelValue" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-    <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+    <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto">
       <div class="mb-5 flex items-start justify-between">
         <div>
           <h2 class="text-lg font-semibold text-gray-900">
@@ -102,6 +108,37 @@ function submit() {
             <option value="" disabled>Select a category</option>
             <option v-for="cat in CATEGORIES" :key="cat" :value="cat">{{ cat }}</option>
           </select>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-gray-700">Issue</label>
+          <textarea
+            v-model="form.issue"
+            rows="2"
+            placeholder="e.g., Battery swelling, do not issue without service."
+            class="w-full resize-none rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:ring-2 focus:ring-gray-300"
+          />
+          <p class="mt-1 text-xs text-gray-400">
+          </p>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-gray-700">Notes</label>
+          <textarea
+            v-model="form.notes"
+            rows="2"
+            placeholder="e.g., internal remarks, warranty info…"
+            class="w-full resize-none rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:ring-2 focus:ring-gray-300"
+          />
+          <p class="mt-1 text-xs text-gray-400">
+          </p>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-gray-700">History</label>
+          <textarea
+            v-model="form.history"
+            rows="3"
+            placeholder="e.g., Returned by user with liquid damage. Keyboard sticky."
+            class="w-full resize-none rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:ring-2 focus:ring-gray-300"
+          />
         </div>
 
         <div class="flex justify-end gap-3 pt-2">

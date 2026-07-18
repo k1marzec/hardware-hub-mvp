@@ -28,12 +28,21 @@ export const authApi = {
   },
 }
 
+export const auditorApi = {
+  run() {
+    return request('/auditor/run')
+  },
+  resolveIssue(deviceId) {
+    return request(`/devices/${deviceId}/resolve-issue`, { method: 'POST' })
+  },
+}
+
 export const userApi = {
   list() {
     return request('/users')
   },
-  create(email, password) {
-    return request('/users', { method: 'POST', body: { email, password } })
+  create(email, password, role = 'user') {
+    return request('/users', { method: 'POST', body: { email, password, role } })
   },
 }
 

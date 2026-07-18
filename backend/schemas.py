@@ -1,6 +1,6 @@
 """Pydantic schemas (request/response models) for the API."""
 
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr
 
@@ -10,9 +10,10 @@ class DeviceBase(BaseModel):
     brand: Optional[str] = ""
     purchaseDate: Optional[str] = None
     status: Optional[str] = "Available"
-    notes: Optional[str] = None
+    issue: Optional[str] = None
     assignedTo: Optional[str] = None
     history: Optional[str] = None
+    notes: Optional[str] = None
     serialNumber: Optional[str] = None
     category: Optional[str] = None
 
@@ -26,9 +27,10 @@ class DeviceUpdate(BaseModel):
     brand: Optional[str] = None
     purchaseDate: Optional[str] = None
     status: Optional[str] = None
-    notes: Optional[str] = None
+    issue: Optional[str] = None
     assignedTo: Optional[str] = None
     history: Optional[str] = None
+    notes: Optional[str] = None
     serialNumber: Optional[str] = None
     category: Optional[str] = None
 
@@ -51,6 +53,7 @@ class LoginRequest(BaseModel):
 class UserCreate(BaseModel):
     email: EmailStr
     password: str
+    role: Optional[str] = "user"
 
 
 class UserOut(BaseModel):
@@ -64,3 +67,20 @@ class UserOut(BaseModel):
 class LoginResponse(BaseModel):
     user: UserOut
     token: str
+
+
+class AuditorIssue(BaseModel):
+    device_id: Optional[int] = None
+    device_name: Optional[str] = None
+    description: str
+    # True -> POST /api/devices/{id}/resolve-issue ("Create service history") is offered
+    actionable: bool = False
+
+
+class AuditorCategory(BaseModel):
+    title: str
+    issues: List[AuditorIssue] = []
+
+
+class AuditorReportResponse(BaseModel):
+    categories: List[AuditorCategory] = []

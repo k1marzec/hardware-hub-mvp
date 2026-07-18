@@ -4,10 +4,16 @@ Uses a local SQLite file (hardware.db) so the whole backend runs with zero
 external dependencies - perfect for an MVP.
 """
 
+from pathlib import Path
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///./hardware.db"
+# Absolute path on purpose: guarantees the API always reads/writes the same
+# hardware.db regardless of the process's current working directory (e.g.
+# if uvicorn is launched from a different folder than backend/).
+BASE_DIR = Path(__file__).resolve().parent
+SQLALCHEMY_DATABASE_URL = f"sqlite:///{BASE_DIR / 'hardware.db'}"
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,

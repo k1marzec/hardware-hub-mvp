@@ -1,82 +1,212 @@
 [
-    {
-      "id": 1,
-      "name": "Apple iPhone 13 Pro Max",
-      "brand": "Apple",
-      "purchaseDate": "2021-11-23",
-      "status": "Available"
-    },
-    {
-      "id": 2,
-      "name": "Apple MacBook Pro 13",
-      "brand": "Apple",
-      "purchaseDate": "2021-12-20",
-      "status": "In Use"
-    },
-    {
-      "id": 3,
-      "name": "Razer Basilisk V2",
-      "brand": "Razer",
-      "purchaseDate": "2021-06-05",
-      "status": "Repair"
-    },
-    {
-      "id": 4,
-      "name": "SAMSUNG Galaxy S21",
-      "brand": "Samsung",
-      "purchaseDate": "2021-11-23",
-      "status": "Available"
-    },
-    {
-      "id": 5,
-      "name": "Dell XPS 15 9510",
-      "brand": "Dell",
-      "purchaseDate": "2022-03-15",
-      "status": "Available",
-      "notes": "Battery swelling, do not issue without service."
-    },
-    {
-      "id": 6,
-      "name": "Logitech MX Master 3",
-      "brand": "Logitech",
-      "purchaseDate": "2027-10-10",
-      "status": "Available"
-    },
-    {
-      "id": 7,
-      "name": "Sony WH-1000XM4",
-      "brand": "Sony",
-      "purchaseDate": "2022-01-12",
-      "status": "In Use",
-      "assignedTo": "j.doe@booksy.com"
-    },
-    {
-      "id": 8,
-      "name": "Duplicate ID Test Laptop",
-      "brand": "Lenovo",
-      "purchaseDate": "2023-01-01",
-      "status": "Repair"
-    },
-    {
-      "id": 9,
-      "name": "iPad Pro 12.9",
-      "brand": "Apple",
-      "purchaseDate": "2023-05-22",
-      "status": "Available"
-    },
-    {
-      "id": 10,
-      "name": "Unknown Device",
-      "brand": "",
-      "purchaseDate": null,
-      "status": "Unknown"
-    },
-    {
-      "id": 11,
-      "name": "MacBook Air M2",
-      "brand": "Apple",
-      "purchaseDate": "2023-08-01",
-      "status": "Available",
-      "history": "Returned by user with liquid damage. Keyboard sticky."
-    }
-  ]
+  {
+    "id": 1,
+    "name": "MacBook Pro 16 (Baseline Healthy)",
+    "brand": "Apple",
+    "category": "Laptop",
+    "serialNumber": "SN-0001",
+    "purchaseDate": "2023-01-10",
+    "status": "Available"
+  },
+  {
+    "id": 2,
+    "name": "iPhone 14 Pro (Rented by Admin)",
+    "brand": "Apple",
+    "category": "Phone",
+    "serialNumber": "SN-0002",
+    "purchaseDate": "2023-02-15",
+    "status": "In Use",
+    "assignedTo": "demo@booksy.com"
+  },
+  {
+    "id": 3,
+    "name": "Galaxy Tab S8 (Rented by Another User)",
+    "brand": "Samsung",
+    "category": "Tablet",
+    "serialNumber": "SN-0003",
+    "purchaseDate": "2023-03-01",
+    "status": "In Use",
+    "assignedTo": "user@booksy.com"
+  },
+  {
+    "id": 4,
+    "name": "Razer BlackWidow V3 (In Repair)",
+    "brand": "Razer",
+    "category": "Keyboard",
+    "serialNumber": "SN-0004",
+    "purchaseDate": "2022-05-20",
+    "status": "Repair"
+  },
+  {
+    "id": 5,
+    "name": "Dell XPS 15 9510 (Critical - Battery Swelling)",
+    "brand": "Dell",
+    "category": "Laptop",
+    "serialNumber": "SN-0005",
+    "purchaseDate": "2022-03-15",
+    "status": "Available",
+    "issue": "Battery swelling, do not issue without service."
+  },
+  {
+    "id": 6,
+    "name": "ThinkPad X1 Carbon (Repeat Offender - Lemon Candidate)",
+    "brand": "Lenovo",
+    "category": "Laptop",
+    "serialNumber": "SN-0006",
+    "purchaseDate": "2021-09-01",
+    "status": "Available",
+    "issue": "Screen flickering intermittently, needs inspection.",
+    "history": "[2026-02-10] Issue reported: Trackpad unresponsive. Device sent to service for repair.\n[2026-05-22] Issue reported: Keyboard keys sticking. Device sent to service for repair."
+  },
+  {
+    "id": 7,
+    "name": "Logitech MX Master 3 (Future Purchase Date)",
+    "brand": "Logitech",
+    "category": "Mouse",
+    "serialNumber": "SN-0007",
+    "purchaseDate": "2027-10-10",
+    "status": "Available"
+  },
+  {
+    "id": 8,
+    "name": "Sony WH-1000XM4 (Malformed Date Format)",
+    "brand": "Sony",
+    "category": "Headphones",
+    "serialNumber": "SN-0008",
+    "purchaseDate": "03/01/2024",
+    "status": "Available"
+  },
+  {
+    "id": 9,
+    "name": "Appel MacBook Pro (Brand Typo)",
+    "brand": "Appel",
+    "category": "Laptop",
+    "serialNumber": "SN-0009",
+    "purchaseDate": "2022-08-12",
+    "status": "Available"
+  },
+  {
+    "id": 10,
+    "name": "Wireless Mouse X200 (Missing Brand)",
+    "brand": "",
+    "category": "Mouse",
+    "serialNumber": "SN-0010",
+    "purchaseDate": "2022-01-01",
+    "status": "Available"
+  },
+  {
+    "id": 11,
+    "name": "Mystery Device (Unrecognized Status, Missing Date)",
+    "brand": "Generic",
+    "category": "Other",
+    "serialNumber": "SN-0011",
+    "purchaseDate": null,
+    "status": "Unknown"
+  },
+  {
+    "id": 12,
+    "name": "iPad Air (History Mentions Damage, Issue Empty)",
+    "brand": "Apple",
+    "category": "Tablet",
+    "serialNumber": "SN-0012",
+    "purchaseDate": "2022-11-05",
+    "status": "Available",
+    "history": "[2026-01-15] Returned by customer with visible screen crack, unit inspected and cleared for reuse."
+  },
+  {
+    "id": 13,
+    "name": "Surface Pro 9 (Has Notes, Independent of Issue)",
+    "brand": "Microsoft",
+    "category": "Tablet",
+    "serialNumber": "SN-0013",
+    "purchaseDate": "2023-04-18",
+    "status": "Available",
+    "notes": "Under extended warranty until 2027-04-18. VIP loaner unit."
+  },
+  {
+    "id": 14,
+    "name": "Keychron K2 (Long History Log)",
+    "brand": "Keychron",
+    "category": "Keyboard",
+    "serialNumber": "SN-0014",
+    "purchaseDate": "2020-01-01",
+    "status": "Available",
+    "history": "[2020-02-01] Received from procurement, added to inventory.\n[2020-08-15] Returned by user, keycap replacement requested.\n[2021-01-10] Sent to service for spacebar double-press issue.\n[2021-07-22] Returned, cleaned and re-lubed switches.\n[2022-03-05] Firmware updated to latest version.\n[2022-11-18] Returned by user, reported occasional double inputs.\n[2023-04-02] Inspected, no defect found, redeployed.\n[2023-09-27] Returned, USB-C port loose - repaired.\n[2024-02-14] Routine inspection, passed all checks.\n[2024-10-30] Returned, missing keycaps replaced.\n[2025-05-09] Returned by user, no issues reported.\n[2025-12-01] Redeployed after full inspection."
+  },
+  {
+    "id": 15,
+    "name": "Dell UltraSharp U2723QE (Long Issue Text)",
+    "brand": "Dell",
+    "category": "Monitor",
+    "serialNumber": "SN-0015",
+    "purchaseDate": "2023-07-07",
+    "status": "Available",
+    "issue": "Screen intermittently flickers with a faint horizontal band artifact near the top edge, most noticeable on darker backgrounds and when the panel is cold at power-on; the issue seems to worsen after the monitor has been running for several hours and may be related to the backlight driver board or a loose ribbon cable connection - user has already tried a different display cable and a driver reinstall with no improvement, so a hardware inspection by the depot technician is recommended before reissuing this unit to another employee."
+  },
+  {
+    "id": 16,
+    "name": "HP EliteBook (Already In Repair, Has Issue Text)",
+    "brand": "HP",
+    "category": "Laptop",
+    "serialNumber": "SN-0016",
+    "purchaseDate": "2021-12-01",
+    "status": "Repair",
+    "issue": "Motherboard failure suspected, awaiting diagnostics."
+  },
+  {
+    "id": 17,
+    "name": "YubiKey 5C (Clean Baseline, Extra Brand/Category)",
+    "brand": "Yubico",
+    "category": "Other",
+    "serialNumber": "SN-0017",
+    "purchaseDate": "2023-09-09",
+    "status": "Available"
+  },
+  {
+    "id": 18,
+    "name": "Google Pixel 7 (Rented by Admin - Second Rental)",
+    "brand": "Google",
+    "category": "Phone",
+    "serialNumber": "SN-0018",
+    "purchaseDate": "2023-01-25",
+    "status": "In Use",
+    "assignedTo": "demo@booksy.com"
+  },
+  {
+    "id": 19,
+    "name": "Anker PowerCore (Missing Category)",
+    "brand": "Anker",
+    "category": "",
+    "serialNumber": "SN-0019",
+    "purchaseDate": "2023-05-30",
+    "status": "Available"
+  },
+  {
+    "id": 20,
+    "name": "LG UltraFine Monitor A (Duplicate Serial Test)",
+    "brand": "LG",
+    "category": "Monitor",
+    "serialNumber": "SN-DUPLICATE-001",
+    "purchaseDate": "2022-10-10",
+    "status": "Available"
+  },
+  {
+    "id": 21,
+    "name": "LG UltraFine Monitor B (Duplicate Serial Test)",
+    "brand": "LG",
+    "category": "Monitor",
+    "serialNumber": "SN-DUPLICATE-001",
+    "purchaseDate": "2022-10-12",
+    "status": "Available"
+  },
+  {
+    "id": 22,
+    "name": "Framework Laptop 13 (In Repair, Has Prior History)",
+    "brand": "Framework",
+    "category": "Laptop",
+    "serialNumber": "SN-0022",
+    "purchaseDate": "2023-06-01",
+    "status": "Repair",
+    "history": "[2026-03-01] Issue reported: Fan noise excessive. Device sent to service for repair."
+  }
+]

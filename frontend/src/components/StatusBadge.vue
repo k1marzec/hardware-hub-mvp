@@ -8,11 +8,10 @@ const props = defineProps({
   },
 })
 
-// Maps raw backend status values to the label/color shown in the UI
-// mock-ups ("In Use" -> "Rented", "Repair" -> "In Repair", ...).
+// Maps raw backend status values to the label/color shown in the UI.
 const STYLES = {
   Available: { label: 'Available', classes: 'bg-gray-900 text-white' },
-  'In Use': { label: 'Rented', classes: 'bg-gray-200 text-gray-600' },
+  'In Use': { label: 'In Use', classes: 'bg-gray-200 text-gray-600' },
   Repair: { label: 'In Repair', classes: 'bg-red-600 text-white' },
 }
 

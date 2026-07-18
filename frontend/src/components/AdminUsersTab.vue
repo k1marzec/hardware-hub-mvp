@@ -26,7 +26,7 @@ async function handleCreate(formData) {
   saving.value = true
   error.value = ''
   try {
-    await userApi.create(formData.email, formData.password)
+    await userApi.create(formData.email, formData.password, formData.role)
     modalOpen.value = false
     await loadUsers()
   } catch (err) {

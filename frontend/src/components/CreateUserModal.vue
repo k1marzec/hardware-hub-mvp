@@ -7,7 +7,7 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'saved'])
 
-const form = reactive({ email: '', password: '' })
+const form = reactive({ email: '', password: '', role: 'user' })
 
 // Always start from a blank form whenever the modal is (re)opened.
 watch(
@@ -16,6 +16,7 @@ watch(
     if (open) {
       form.email = ''
       form.password = ''
+      form.role = 'user'
     }
   },
 )
@@ -64,6 +65,16 @@ function submit() {
             placeholder="Enter a password"
             class="w-full rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:ring-2 focus:ring-gray-300"
           />
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-gray-700">Role</label>
+          <select
+            v-model="form.role"
+            class="w-full rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-gray-300"
+          >
+            <option value="user">User — Hardware List &amp; My Rentals</option>
+            <option value="admin">Admin — full access incl. Admin Panel</option>
+          </select>
         </div>
 
         <div class="flex justify-end gap-3 pt-2">
