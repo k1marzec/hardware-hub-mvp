@@ -52,6 +52,7 @@ Specifically look for:
 - Temporal errors: Purchase dates in the future (after 2026) or incorrect date formats (non-ISO).
 - Incomplete data: Missing brands or unrecognized statuses (e.g., 'Unknown').
 - Typographical errors: Misspelled brand names (e.g., 'Appel' instead of 'Apple').
+- Data integrity: Duplicate "serialNumber" values - two or more devices sharing the exact same serial number (ignore null/empty serial numbers, those are just missing data, not duplicates). Report this as a separate issue for EACH affected device (its own "device_id"/"device_name"), with the description naming the shared serial number and the other device(s) it collides with (by name and/or id).
 
 IMPORTANT: completely IGNORE the "history" and "notes" fields for every check
 above and in general. "history" is only a log of past actions already taken
@@ -60,7 +61,8 @@ something that already happened and was already handled), and "notes" is a
 free-form admin field (which may contain an automated "repeat offender"
 warning) - neither must have ANY influence on your analysis. Never flag,
 mention, or reference anything found only in "history" or "notes"; base every
-issue exclusively on "issue", "name", "brand", "purchaseDate", and "status".
+issue exclusively on "issue", "name", "brand", "purchaseDate", "status", and
+"serialNumber".
 If a device's "issue" field is empty/null, it has no open defect - regardless
 of what "history" or "notes" says - so do not report anything about it, not
 even as a non-actionable note.
@@ -86,6 +88,18 @@ Respond with ONLY a valid JSON object (no markdown, no code fences, no commentar
           "device_id": 7,
           "device_name": "Appel MacBook Pro",
           "description": "Brand is misspelled: 'Appel' instead of 'Apple'.",
+          "actionable": false
+        },
+        {
+          "device_id": 12,
+          "device_name": "Dell XPS 15",
+          "description": "Duplicate serial number 'SN-0042', also used by device #19 (Dell XPS 15 - second unit).",
+          "actionable": false
+        },
+        {
+          "device_id": 19,
+          "device_name": "Dell XPS 15 (second unit)",
+          "description": "Duplicate serial number 'SN-0042', also used by device #12 (Dell XPS 15).",
           "actionable": false
         }
       ]

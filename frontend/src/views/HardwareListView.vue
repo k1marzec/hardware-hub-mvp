@@ -2,6 +2,8 @@
 import { computed, onMounted, ref } from 'vue'
 
 import StatusBadge from '../components/StatusBadge.vue'
+import { useDeviceFilters } from '../composables/useDeviceFilters'
+import { useRowHighlight } from '../composables/useRowHighlight'
 import { deviceApi } from '../services/api'
 import { useAuth } from '../stores/auth'
 
@@ -11,56 +13,25 @@ const devices = ref([])
 const loading = ref(true)
 const error = ref('')
 const actionId = ref(null)
-const highlightedId = ref(null)
-let highlightTimeoutId = null
 
-// --- Toolbar: search + status + brand filters ------------------------------
+// --- Toolbar: search + status + brand/category filters ---------------------
 
-const searchQuery = ref('')
-const statusFilter = ref('All')
-const brandFilter = ref('All')
-const categoryFilter = ref('All')
+const {
+  STATUS_OPTIONS,
+  searchQuery,
+  statusFilter,
+  brandFilter,
+  categoryFilter,
+  brandOptions,
+  categoryOptions,
+  filteredDevices,
+  hasActiveFilters,
+  clearFilters,
+} = useDeviceFilters(devices)
 
-const STATUS_OPTIONS = ['All', 'Available', 'In Use', 'Repair']
+// --- Locate + highlight a row (e.g. from the Inventory Auditor) ------------
 
-const brandOptions = computed(() => {
-  const brands = new Set(devices.value.map((device) => device.brand).filter(Boolean))
-  return ['All', ...Array.from(brands).sort((a, b) => a.localeCompare(b))]
-})
-
-const categoryOptions = computed(() => {
-  const categories = new Set(devices.value.map((device) => device.category).filter(Boolean))
-  return ['All', ...Array.from(categories).sort((a, b) => a.localeCompare(b))]
-})
-
-const filteredDevices = computed(() => {
-  const query = searchQuery.value.trim().toLowerCase()
-  return devices.value.filter((device) => {
-    const matchesStatus = statusFilter.value === 'All' || device.status === statusFilter.value
-    const matchesBrand = brandFilter.value === 'All' || device.brand === brandFilter.value
-    const matchesCategory = categoryFilter.value === 'All' || device.category === categoryFilter.value
-    const matchesSearch =
-      !query ||
-      (device.name || '').toLowerCase().includes(query) ||
-      (device.brand || '').toLowerCase().includes(query)
-    return matchesStatus && matchesBrand && matchesCategory && matchesSearch
-  })
-})
-
-const hasActiveFilters = computed(
-  () =>
-    !!searchQuery.value.trim() ||
-    statusFilter.value !== 'All' ||
-    brandFilter.value !== 'All' ||
-    categoryFilter.value !== 'All'
-)
-
-function clearFilters() {
-  searchQuery.value = ''
-  statusFilter.value = 'All'
-  brandFilter.value = 'All'
-  categoryFilter.value = 'All'
-}
+const { highlightedId, scrollToDevice } = useRowHighlight()
 
 // --- Sorting ---------------------------------------------------------------
 
@@ -145,7 +116,7 @@ async function handleRent(device) {
   actionId.value = device.id
   error.value = ''
   try {
-    await deviceApi.rent(device.id, user.value.email)
+    await deviceApi.rent(device.id)
     await loadDevices()
   } catch (err) {
     error.value = err.message
@@ -171,24 +142,6 @@ function handleAction(device) {
   const action = actionFor(device)
   if (action.disabled || !action.handler || actionId.value === device.id) return
   action.handler(device)
-}
-
-// Smooth-scrolls the list to a given device's row and briefly highlights it
-// so it's easy to spot, then fades the highlight back out after 2s.
-function scrollToDevice(deviceId, attempt = 0) {
-  const row = document.getElementById(`device-${deviceId}`)
-  if (!row) {
-    if (attempt < 10) setTimeout(() => scrollToDevice(deviceId, attempt + 1), 150)
-    return
-  }
-
-  row.scrollIntoView({ behavior: 'smooth', block: 'center' })
-
-  highlightedId.value = deviceId
-  clearTimeout(highlightTimeoutId)
-  highlightTimeoutId = setTimeout(() => {
-    highlightedId.value = null
-  }, 2000)
 }
 
 onMounted(loadDevices)

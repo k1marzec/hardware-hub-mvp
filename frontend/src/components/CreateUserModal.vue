@@ -61,8 +61,9 @@ function submit() {
           <input
             v-model="form.password"
             required
+            minlength="8"
             type="password"
-            placeholder="Enter a password"
+            placeholder="Enter a password (min. 8 characters)"
             class="w-full rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:ring-2 focus:ring-gray-300"
           />
         </div>

@@ -9,6 +9,11 @@ email-validator==2.2.0
 passlib==1.7.4
 bcrypt==4.0.1
 
+# Signed, tamper-proof session tokens (see auth.py) - HMAC-signs the
+# payload with SESSION_SECRET_KEY so a token can't be forged or edited
+# (e.g. to swap in a different user id) without invalidating the signature.
+itsdangerous>=2.2.0
+
 # Inventory Auditor (see auditor.py) - one-shot Chat Completions call
 # (json_object response format) sent to OpenRouter (https://openrouter.ai),
 # using the `openai` package as an OpenAI-API-compatible client pointed at

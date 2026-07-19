@@ -2,15 +2,16 @@
 
 This is a *closed system*: there is no self-service sign-up. The only way to
 obtain a login is for an admin to create an account via `POST /api/users`
-(surfaced in the Admin Panel's "Users" tab). Login performs a real lookup +
-bcrypt hash comparison against the `users` table — no more mock fallback.
+(surfaced in the Admin Panel's "Users" tab, itself admin-only). Login
+performs a real lookup + bcrypt hash comparison against the `users` table.
 
-There is still no JWT/session infra (the "token" returned by login is a
-placeholder string) and Admin-only endpoints aren't enforced server-side —
-access to the Admin Panel is gated at the UI level based on the logged-in
-user's role. That's an acceptable trade-off for this MVP's scope, but would
-need to be hardened (real tokens + server-side role checks) before shipping
-to production.
+Every endpoint that reads or writes user/device data requires a valid,
+signed session token (`Authorization: Bearer <token>`, see `auth.py`) via
+`Depends(get_current_user)`; admin-only endpoints additionally require
+`Depends(require_admin)`. Ownership is enforced server-side too, not just
+in the UI - e.g. `rent`/`return` always use the *caller's* email from their
+token, never a client-supplied value, and a non-admin can only return a
+device currently assigned to themselves.
 """
 
 from contextlib import asynccontextmanager
@@ -26,6 +27,7 @@ import models
 import schemas
 import security
 from auditor import AuditorError, resolve_device_issue, run_audit
+from auth import create_session_token, get_current_user, require_admin
 from database import get_db
 from seed import run_seed
 
@@ -78,7 +80,7 @@ def login(payload: schemas.LoginRequest, db: Session = Depends(get_db)):
 
     return schemas.LoginResponse(
         user=schemas.UserOut.model_validate(user),
-        token=f"mock-token-{email}",
+        token=create_session_token(user.id),
     )
 
 
@@ -88,12 +90,16 @@ def login(payload: schemas.LoginRequest, db: Session = Depends(get_db)):
 
 
 @app.get("/api/users", response_model=List[schemas.UserOut])
-def list_users(db: Session = Depends(get_db)):
+def list_users(db: Session = Depends(get_db), _admin: models.User = Depends(require_admin)):
     return db.query(models.User).order_by(models.User.id).all()
 
 
 @app.post("/api/users", response_model=schemas.UserOut, status_code=201)
-def create_user(payload: schemas.UserCreate, db: Session = Depends(get_db)):
+def create_user(
+    payload: schemas.UserCreate,
+    db: Session = Depends(get_db),
+    _admin: models.User = Depends(require_admin),
+):
     email = payload.email.lower()
 
     if not email.endswith("@booksy.com"):
@@ -105,14 +111,13 @@ def create_user(payload: schemas.UserCreate, db: Session = Depends(get_db)):
     if existing is not None:
         raise HTTPException(status_code=400, detail="A user with this email already exists")
 
-    role = (payload.role or "user").strip().lower()
-    if role not in {"user", "admin"}:
-        raise HTTPException(status_code=400, detail="Role must be either 'user' or 'admin'")
-
+    # `payload.role` is a Pydantic `Literal["user", "admin"]` (schemas.py) -
+    # anything else is already rejected as a 422 before this line runs, so
+    # there's no free-text role value here to blindly trust/assign.
     user = models.User(
         email=email,
         hashed_password=security.hash_password(payload.password),
-        role=role,
+        role=payload.role,
     )
     db.add(user)
     db.commit()
@@ -126,12 +131,16 @@ def create_user(payload: schemas.UserCreate, db: Session = Depends(get_db)):
 
 
 @app.get("/api/devices", response_model=List[schemas.DeviceOut])
-def list_devices(db: Session = Depends(get_db)):
+def list_devices(db: Session = Depends(get_db), _user: models.User = Depends(get_current_user)):
     return db.query(models.Device).order_by(models.Device.id).all()
 
 
 @app.get("/api/devices/{device_id}", response_model=schemas.DeviceOut)
-def get_device(device_id: int, db: Session = Depends(get_db)):
+def get_device(
+    device_id: int,
+    db: Session = Depends(get_db),
+    _user: models.User = Depends(get_current_user),
+):
     device = db.query(models.Device).filter(models.Device.id == device_id).first()
     if device is None:
         raise HTTPException(status_code=404, detail="Device not found")
@@ -144,7 +153,11 @@ def get_device(device_id: int, db: Session = Depends(get_db)):
 
 
 @app.post("/api/devices", response_model=schemas.DeviceOut, status_code=201)
-def create_device(payload: schemas.DeviceCreate, db: Session = Depends(get_db)):
+def create_device(
+    payload: schemas.DeviceCreate,
+    db: Session = Depends(get_db),
+    _admin: models.User = Depends(require_admin),
+):
     data = payload.model_dump()
     if not data.get("purchaseDate"):
         data["purchaseDate"] = date.today().isoformat()
@@ -158,7 +171,10 @@ def create_device(payload: schemas.DeviceCreate, db: Session = Depends(get_db)):
 
 @app.put("/api/devices/{device_id}", response_model=schemas.DeviceOut)
 def update_device(
-    device_id: int, payload: schemas.DeviceUpdate, db: Session = Depends(get_db)
+    device_id: int,
+    payload: schemas.DeviceUpdate,
+    db: Session = Depends(get_db),
+    _admin: models.User = Depends(require_admin),
 ):
     device = db.query(models.Device).filter(models.Device.id == device_id).first()
     if device is None:
@@ -173,7 +189,11 @@ def update_device(
 
 
 @app.delete("/api/devices/{device_id}", status_code=204)
-def delete_device(device_id: int, db: Session = Depends(get_db)):
+def delete_device(
+    device_id: int,
+    db: Session = Depends(get_db),
+    _admin: models.User = Depends(require_admin),
+):
     device = db.query(models.Device).filter(models.Device.id == device_id).first()
     if device is None:
         raise HTTPException(status_code=404, detail="Device not found")
@@ -184,7 +204,11 @@ def delete_device(device_id: int, db: Session = Depends(get_db)):
 
 
 @app.patch("/api/devices/{device_id}/repair", response_model=schemas.DeviceOut)
-def send_to_repair(device_id: int, db: Session = Depends(get_db)):
+def send_to_repair(
+    device_id: int,
+    db: Session = Depends(get_db),
+    _admin: models.User = Depends(require_admin),
+):
     device = db.query(models.Device).filter(models.Device.id == device_id).first()
     if device is None:
         raise HTTPException(status_code=404, detail="Device not found")
@@ -196,7 +220,11 @@ def send_to_repair(device_id: int, db: Session = Depends(get_db)):
 
 
 @app.patch("/api/devices/{device_id}/restore", response_model=schemas.DeviceOut)
-def restore_from_repair(device_id: int, db: Session = Depends(get_db)):
+def restore_from_repair(
+    device_id: int,
+    db: Session = Depends(get_db),
+    _admin: models.User = Depends(require_admin),
+):
     """Reverses "Send to Repair": puts the device back into the Available pool."""
     device = db.query(models.Device).filter(models.Device.id == device_id).first()
     if device is None:
@@ -239,8 +267,13 @@ RENT_BLOCKED_STATUSES = {"Repair", "In Use"}
 
 @app.post("/api/devices/{device_id}/rent", response_model=schemas.DeviceOut)
 def rent_device(
-    device_id: int, payload: schemas.RentRequest, db: Session = Depends(get_db)
+    device_id: int,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
 ):
+    # The renter is always the *authenticated* caller - never a
+    # client-supplied email in the request body - so nobody can rent a
+    # device on someone else's behalf by editing the JSON payload.
     device = db.query(models.Device).filter(models.Device.id == device_id).first()
     if device is None:
         raise HTTPException(status_code=404, detail="Device not found")
@@ -251,7 +284,7 @@ def rent_device(
             models.Device.id == device_id,
             models.Device.status.notin_(RENT_BLOCKED_STATUSES),
         )
-        .values(status="In Use", assignedTo=payload.email.lower())
+        .values(status="In Use", assignedTo=user.email)
     )
     db.commit()
 
@@ -269,20 +302,40 @@ def rent_device(
 
 
 @app.post("/api/devices/{device_id}/return", response_model=schemas.DeviceOut)
-def return_device(device_id: int, db: Session = Depends(get_db)):
+def return_device(
+    device_id: int,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
     device = db.query(models.Device).filter(models.Device.id == device_id).first()
     if device is None:
         raise HTTPException(status_code=404, detail="Device not found")
 
+    # Ownership guard: a regular user may only return a device currently
+    # assigned to *themselves* - admins can force-return any device (e.g.
+    # an employee who left without returning it). Folded into the same
+    # atomic WHERE as the status check, for the same race-condition reasons
+    # documented above.
+    conditions = [models.Device.id == device_id, models.Device.status == "In Use"]
+    if user.role != "admin":
+        conditions.append(models.Device.assignedTo == user.email)
+
     result = db.execute(
-        update(models.Device)
-        .where(models.Device.id == device_id, models.Device.status == "In Use")
-        .values(status="Available", assignedTo=None)
+        update(models.Device).where(*conditions).values(status="Available", assignedTo=None)
     )
     db.commit()
 
     if result.rowcount == 0:
         db.refresh(device)
+        if (
+            device.status == "In Use"
+            and user.role != "admin"
+            and (device.assignedTo or "").lower() != user.email.lower()
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail="You can only return a device assigned to you",
+            )
         raise HTTPException(
             status_code=409,
             detail=f"Device cannot be returned because its status is '{device.status}', not 'In Use'",
@@ -293,10 +346,15 @@ def return_device(device_id: int, db: Session = Depends(get_db)):
 
 
 @app.get("/api/rentals", response_model=List[schemas.DeviceOut])
-def my_rentals(email: str, db: Session = Depends(get_db)):
+def my_rentals(db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    # Always the caller's own rentals - previously this took an arbitrary
+    # `email` query parameter, letting anyone enumerate any other user's
+    # rented devices (IDOR). Nothing in the UI ever needed "someone else's"
+    # rentals: admins already see every device's `assignedTo` via
+    # GET /api/devices.
     return (
         db.query(models.Device)
-        .filter(models.Device.assignedTo == email.lower())
+        .filter(models.Device.assignedTo == user.email)
         .order_by(models.Device.id)
         .all()
     )
@@ -324,7 +382,7 @@ LEMON_WARNING = "\u26A0\uFE0F WARNING: Failure-prone device. Serviced 3 or more 
 
 
 @app.get("/api/auditor/run", response_model=schemas.AuditorReportResponse)
-def run_auditor(db: Session = Depends(get_db)):
+def run_auditor(db: Session = Depends(get_db), _admin: models.User = Depends(require_admin)):
     devices = db.query(models.Device).order_by(models.Device.id).all()
     devices_data = [schemas.DeviceOut.model_validate(d).model_dump() for d in devices]
 
@@ -341,7 +399,11 @@ def run_auditor(db: Session = Depends(get_db)):
 
 
 @app.post("/api/devices/{device_id}/resolve-issue", response_model=schemas.DeviceOut)
-def resolve_issue(device_id: int, db: Session = Depends(get_db)):
+def resolve_issue(
+    device_id: int,
+    db: Session = Depends(get_db),
+    _admin: models.User = Depends(require_admin),
+):
     """"Create service history": the interactive counterpart to the passive AI
     Health Check report. Takes one device flagged with an open `issue`, asks
     the model to turn that description into a professional repair-ticket

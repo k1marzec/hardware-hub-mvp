@@ -6,6 +6,11 @@ backend/.venv/
 backend/venv/
 backend/.env
 
+# Test artifacts (pytest / coverage.py)
+backend/.pytest_cache/
+backend/.coverage
+backend/htmlcov/
+
 # Frontend
 frontend/node_modules/
 frontend/dist/

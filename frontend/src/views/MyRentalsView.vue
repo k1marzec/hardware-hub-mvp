@@ -17,7 +17,7 @@ async function loadRentals() {
   loading.value = true
   error.value = ''
   try {
-    devices.value = await deviceApi.myRentals(user.value.email)
+    devices.value = await deviceApi.myRentals()
   } catch (err) {
     error.value = err.message
   } finally {
