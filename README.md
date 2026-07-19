@@ -1,344 +1,238 @@
-# Hardware Management System — MVP
+# Hardware Hub Booksy — MVP
 
-System do zarządzania sprzętem firmowym (wypożyczenia, panel admina, status
-urządzeń). Obejmuje kompletny CRUD, "Rental Engine" z twardą walidacją stanów,
-zamknięty system logowania z rolami (`admin`/`user`) oraz "Inventory Auditor"
-— proaktywny skan bazy sprzętu w poszukiwaniu anomalii (OpenAI przez
-OpenRouter), z akcją "jednym kliknięciem AI" Predictive Maintenance
-("Create service history" — zgłoszona usterka staje się wpisem w historii +
-statusem "Repair").
+App for managing company hardware: rent devices, admin panel, user roles, and an AI **Inventory Auditor** (OpenAI through OpenRouter).
 
-## Stos technologiczny
+**Tech:** Python/FastAPI, SQLite · Vue 3, Vite, Tailwind · OpenRouter
 
-- **Backend:** Python, FastAPI, SQLAlchemy, SQLite
-- **Frontend:** Vue 3 (`<script setup>`, Composition API), Vite, Tailwind CSS
-- **Inventory Auditor:** model OpenAI routowany przez [OpenRouter](https://openrouter.ai) (`openai` SDK jako klient wskazujący na OpenRouter, Chat Completions API)
+---
 
-## Struktura projektu
-
-```
-hardware_hub_booksy/
-├── backend/
-│   ├── main.py            # Endpointy REST API
-│   ├── models.py          # Modele SQLAlchemy (Device, User)
-│   ├── schemas.py         # Schematy Pydantic
-│   ├── database.py        # Konfiguracja SQLite + sesji (ścieżka absolutna)
-│   ├── security.py        # Hashowanie haseł (passlib + bcrypt)
-│   ├── auth.py             # Podpisane tokeny sesji + get_current_user/require_admin
-│   ├── auditor.py          # Inventory Auditor: skan anomalii przez OpenRouter
-│   ├── seed.py             # Wgrywa hardware_data.json + konto demo admina
-│   ├── hardware_data.json  # Kopia danych startowych
-│   ├── .env                # OPENROUTER_API_KEY / OPENROUTER_MODEL (NIE commitować!)
-│   ├── .env.example
-│   └── requirements.txt
-└── frontend/
-    ├── src/
-    │   ├── views/          # LoginView, HardwareListView, MyRentalsView, AdminPanelView
-    │   ├── components/     # Sidebar, StatusBadge, DeviceModal, AdminHardwareTab,
-    │   │                   # AdminUsersTab, CreateUserModal, AiHealthCheck, ...
-    │   ├── composables/     # useDeviceFilters, useRowHighlight (shared logic, z testami)
-    │   ├── layouts/         # DashboardLayout (sidebar + router-view)
-    │   ├── stores/auth.js   # Prosty store sesji (localStorage)
-    │   ├── services/api.js  # Klient REST (fetch)
-    │   └── router/index.js
-    ├── package.json
-    └── tailwind.config.js
-```
-
-## Uruchomienie — Backend
+## Quick start
 
 ```bash
+# Backend
 cd backend
 python -m venv .venv
-.venv\Scripts\activate        # Windows PowerShell
+.venv\Scripts\activate          # Windows
 pip install -r requirements.txt
+# Copy .env.example → .env, then set OPENROUTER_API_KEY and SESSION_SECRET_KEY
 uvicorn main:app --reload --port 8000
+
+# Frontend (new terminal)
+cd frontend
+npm install
+npm run dev                     # http://localhost:5173
 ```
 
-Baza `hardware.db` oraz konto demo admina są tworzone automatycznie przy
-starcie serwera (dzięki `seed.py` wywoływanemu w `lifespan` handlerze
-aplikacji FastAPI). Można też wywołać seed ręcznie:
+- API: `http://localhost:8000`
 
-```bash
-python seed.py
-```
 
-> **Aktualizacja schematu:** jeśli masz już plik `backend/hardware.db` z
-> wcześniejszej wersji projektu (kolumna `password` zamiast
-> `hashed_password` w `users`, brak kolumny `notes` w `devices`, albo stara
-> kolumna `notes` w miejscu dzisiejszego `issue`), usuń go przed ponownym
-> startem serwera — SQLAlchemy nie robi automatycznych migracji, a stary
-> schemat jest niekompatybilny z nowym modelem.
 
-API dostępne pod `http://localhost:8000`, dokumentacja Swaggera pod
-`http://localhost:8000/docs`.
+### Demo logins
 
-### Inventory Auditor ("Zero-UI") — konfiguracja (OpenRouter)
+Created automatically on first start:
 
-Zapytania AI nie idą bezpośrednio do OpenAI — przechodzą przez
-[OpenRouter](https://openrouter.ai), które udostępnia modele OpenAI (i inne)
-pod jednym, ujednoliconym API zgodnym z klientem `openai`. `backend/.env`
-musi więc zawierać klucz API **z OpenRouter** (do wygenerowania na
-[openrouter.ai/keys](https://openrouter.ai/keys) — **nie** klucz
-`sk-...` z platform.openai.com, tylko klucz OpenRouter), oraz nazwę modelu w
-formacie OpenRouter (z prefiksem dostawcy, np. `openai/gpt-4o-mini` dla
-modelu OpenAI dostępnego przez OpenRouter):
 
-```
-OPENROUTER_API_KEY=twoj-klucz-api-z-openrouter
+| Email             | Password  | Role  |
+| ----------------- | --------- | ----- |
+| `demo@booksy.com` | `demo123` | admin |
+| `user@booksy.com` | `user123` | user  |
+
+
+- Emails must end with `@booksy.com`.
+- **Login page** checks the domain in the browser and again on the server.
+- **Create user** (admin form) does **not** check the domain in the browser — only the server does.
+- Nobody can sign up themselves. Only an admin can create accounts.
+
+If you upgrade from an older version and the app breaks, delete `backend/hardware.db` and restart (the DB schema is not migrated automatically).
+
+### AI setup (Inventory Auditor)
+
+Put this in `backend/.env`:
+
+```env
+OPENROUTER_API_KEY=sk-or-...
 OPENROUTER_MODEL=openai/gpt-4o-mini
+SESSION_SECRET_KEY=<run: python -c "import secrets; print(secrets.token_hex(32))">
 ```
 
-Backend (`backend/auditor.py`) tworzy klienta `OpenAI(...)` z pakietu
-`openai`, ale z `base_url` wskazującym na `https://openrouter.ai/api/v1` —
-to jedyna różnica względem wywoływania OpenAI bezpośrednio, więc cała
-pozostała logika (system prompty, `response_format: json_object`, obsługa
-błędów) działa bez zmian.
+Get the API key from [openrouter.ai/keys](https://openrouter.ai/keys) (OpenRouter key, not a normal OpenAI key).
 
-Backend (`GET /api/auditor/run`) skanuje **całą** bazę
-`devices` w poszukiwaniu anomalii: sprzęt oznaczony jako "Available", mimo
-notatek/historii o naprawie/uszkodzeniu, daty zakupu z przyszłości, brakujące
-dane, błędy w nazwach marek, oraz **zduplikowane numery seryjne**
-(`serialNumber`) — gdy dwa lub więcej urządzeń mają identyczny `serialNumber`,
-każde z nich trafia jako osobny wpis w kategorii "Data Integrity Issues" z
-odniesieniem do urządzenia, z którym koliduje. Wynik to **ustrukturyzowany
-JSON** (nie wolny tekst) generowany jednym zapytaniem przez OpenRouter
-(`response_format: json_object`) — cały inwentarz trafia do modelu jako JSON
-w jednej wiadomości, ze ściśle zdefiniowanym system promptem. Odpowiedź jest
-podzielona na kategorie (np. "🔴 Critical Business Risks"), a każdy problem
-(`issue`) może być powiązany z konkretnym urządzeniem (`device_id`) i
-oznaczony jako `actionable`, jeśli da się go rozwiązać automatycznie.
+Optional (rarely needed):
 
-Frontend (`AiHealthCheck.vue`, widoczny wyłącznie w **Admin Panel**) wywołuje
-ten endpoint automatycznie po wejściu do panelu (`onMounted`), pokazuje
-spinner "AI is analyzing inventory records…", a po odpowiedzi renderuje
-kafelki pogrupowane w kategorie — z opcją ponownego uruchomienia skanu lub
-zamknięcia karty.
+```env
+# OPENROUTER_SITE_URL=http://localhost:5173
+# OPENROUTER_SITE_NAME=Hardware Hub Booksy
+```
 
-Każdy `issue` audytu ma pole `actionable`, które mówi UI, czy pokazać na
-kafelku przycisk "Create service history":
+---
 
-**"Naprawa Sprzętu" / Predictive Maintenance — przycisk "Create service history"
-(`actionable: true`):** pokazuje się dla urządzeń ze statusem innym
-niż `"Repair"` i **niepustym polem `issue`** opisującym realną, otwartą
-usterkę. Kolumna `history` to tylko dziennik zdarzeń ("co już zrobiono ze
-sprzętem") i nigdy sama nie uruchamia tego przycisku — nawet jeśli audytor
-wykryje w niej wzmiankę o defekcie, zgłosi to jako nieakcjonowalną notatkę
-informacyjną. Kliknięcie wywołuje `POST /api/devices/{id}/resolve-issue`, który:
-1. Wysyła treść pola `issue` przez OpenRouter (do modelu OpenAI) z promptem proszącym o wygenerowanie
-   krótkiego, profesjonalnego wpisu do historii sprzętu (**bez** szacowania
-   liczby dni naprawy — tylko fakt zgłoszenia i wysłania do serwisu).
-2. Zapisuje wygenerowany tekst w kolumnie `history` (z datą, w nowej linii).
-3. Zmienia `status` urządzenia na `"Repair"` i czyści `issue` (problem uznany
-   za zgłoszony/rozwiązany).
-4. **"Lemon" detection:** po zapisie liczy, ile razy w kolumnie `history`
-   występuje bieżący rok (np. `"2026"`). Jeśli 3 lub więcej razy, wpisuje (o
-   ile jest wtedy puste) w niezależne pole `notes` ostrzeżenie: *"⚠️ UWAGA:
-   Urządzenie awaryjne. Wymagało serwisu 3 lub więcej razy w tym roku."* —
-   sygnał dla admina, że sprzęt regularnie się psuje, bez konieczności
-   czytania całej historii. Ostrzeżenie ląduje w `notes`, a nie w `issue`,
-   żeby nie zostało błędnie zinterpretowane przez Inventory Auditor jako nowa,
-   otwarta usterka do naprawy.
 
-Inne anomalie wykryte przez audytora (literówki w marce/nazwie, błędne daty,
-brakujące dane, nierozpoznane statusy) są tylko informacyjne (`actionable:
-false`) — nie ma dla nich automatycznej akcji naprawczej.
 
-Po sukcesie kafelek płynnie znika z widoku (`<TransitionGroup>`, Local State
-Mutation — bez przeładowania całego raportu), a tabela sprzętu w zakładce
-"Hardware" odświeża się automatycznie.
+## What works
 
-Bez skonfigurowanego `OPENROUTER_API_KEY` obie ścieżki (`/api/auditor/run`,
-`/api/devices/{id}/resolve-issue`) zwrócą błąd `502` z czytelnym komunikatem.
 
-## Testy backendu (pytest)
+| Area                  | Details                                                                                                                                                              |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Login & roles**     | Passwords are hashed. Login returns a signed token. The frontend sends it as `Authorization: Bearer …`. The API checks who you are and whether you are an admin.     |
+| **Users**             | Only admins can list or create users. Role is only `user` or `admin` (invalid roles are rejected).                                                                   |
+| **Hardware**          | Admins can add, edit, delete devices; send to repair / mark available again. Fields include `issue`, `notes`, `history`, serial number, category.                    |
+| **Rent / return**     | Safe updates so two people cannot rent the same device at once. You rent as yourself (from your token). You can only return your own device (admins can return any). |
+| **Filters & sort**    | Search + filters by status / brand / category on Hardware List and Admin → Hardware. Clickable column sort only on Hardware List.                                    |
+| **Inventory Auditor** | AI scans the inventory for problems (e.g. available but broken, bad dates, brand typos, duplicate serial numbers). Useful items show **Create service history**.     |
+| **Service history**   | That button writes an AI history note, sets status to `Repair`, clears `issue`. If the device was serviced 3+ times this year, a warning is stored in `notes`.       |
+| **Tests**             | Backend: 76 pytest tests on `main.py` and `auditor.py` (AI is mocked). Frontend: Vitest for filters, row highlight, auth store, API helper, StatusBadge. |
 
-Kompletna suita testowa dla `main.py` i `auditor.py` (Auth, Rental Engine +
-race conditions, Hardware CRUD, Inventory Auditor, "Create service history",
-Lemon detection) — 100% pokrycia obu plików, bez żadnych realnych zapytań do
-OpenRouter (klient AI jest zawsze mockowany, patrz `conftest.py`).
+### Device statuses
+
+`Available` → **Rent** → `In Use` → **Return** → `Available`
+
+You cannot rent a device that is already `In Use` or in `Repair`.
+
+### Main API routes
+
+
+| Method              | Path                                    | Who       | What                   |
+| ------------------- | --------------------------------------- | --------- | ---------------------- |
+| POST                | `/api/auth/login`                       | anyone    | Login                  |
+| GET / POST          | `/api/users`                            | admin     | List / create users    |
+| GET                 | `/api/devices`…                         | logged in | List / view devices    |
+| POST / PUT / DELETE | `/api/devices`…                         | admin     | Manage devices         |
+| PATCH               | `/api/devices/{id}/repair` or `restore` | admin     | Repair on/off          |
+| POST                | `/api/devices/{id}/rent` or `return`    | logged in | Rent / return          |
+| GET                 | `/api/rentals`                          | logged in | My rentals             |
+| GET                 | `/api/auditor/run`                      | admin     | Run AI scan            |
+| POST                | `/api/devices/{id}/resolve-issue`       | admin     | Create service history |
+| GET                 | `/api/health`                           | anyone    | Is the server up?      |
+
+
+
+
+### Run tests
 
 ```bash
-cd backend
-pip install -r requirements-dev.txt
+# Backend
+cd backend && pip install -r requirements-dev.txt
 pytest --cov=main --cov=auditor --cov-report=term-missing
+
+# Frontend
+cd frontend && npm run test
 ```
 
-Każdy test dostaje własną, izolowaną, in-memory bazę SQLite (nadpisana
-zależność `get_db`) — testy nigdy nie dotykają realnego `backend/hardware.db`
-i nie wpływają na siebie wzajemnie. Pliki:
-- `conftest.py` — fixtures (`client`: zalogowany domyślnie jako bootstrap
-  admin — patrz sekcja Autoryzacja; `llm` do mockowania AI) i helpery
-  (`register_user`, `login`, `auth_headers`, `create_device`).
-- `test_main.py` — Auth/tokeny sesji, Users (w tym blokada
-  privilege escalation/mass assignment ról), Hardware CRUD (w tym 403 dla
-  nie-admina), Rental Engine (w tym ownership guard na `return` i test
-  współbieżności: 10 równoczesnych żądań "Rent" → zawsze 1× 200, 9× 409).
-- `test_auditor.py` — `auditor.py` (parsing/sanityzacja odpowiedzi LLM) oraz
-  `/api/auditor/run` i `/api/devices/{id}/resolve-issue` (w tym Lemon
-  detection i ochrona przed race condition).
+---
 
-## Uruchomienie — Frontend
+## Shortcuts we took (and why)
 
-```bash
-cd frontend
-npm install
-npm run dev
+Things built the simple way for this MVP.
+
+### 1. Session token in `localStorage`
+
+- **What:** After login, the token is stored in the browser and sent on each request.
+- **Why:** Real login checks on the server without a full JWT / cookie setup.
+- **Later:** Shorter-lived tokens, secure cookies, refresh tokens, forced logout.
+
+### 2. SQLite file, no migrations
+
+- **What:** One local database file. Schema changes mean delete the DB and re-seed.
+- **Why:** Easy local demo. Seed data covers many edge cases.
+- **Later:** Proper migrations; a bigger database (e.g. Postgres) if needed.
+
+### 3. Filters and sort in the browser
+
+- **What:** Filtering (and sorting on Hardware List) happens in the UI on the full list.
+- **Why:** Small inventory; keeps the API simple.
+- **Later:** Filtering/sorting/pagination on the server when the list gets large.
+
+### 4. Missing session secret
+
+- **What:** If `SESSION_SECRET_KEY` is empty, the server makes a random one at start. Restart logs everyone out.
+- **Why:** App still runs for a first demo with almost no setup.
+- **Later:** Require the secret in production.
+
+### 5. AI does most of the audit
+
+- **What:** One AI call returns a JSON report. Extra Python code cleans up messy answers.
+- **Why:** Quick Inventory Auditor feature; easy to change models via OpenRouter.
+- **Later:** Hard checks in code for duplicates/dates/statuses; use AI mainly for free-text issues.
+
+### 6. “Lemon” (repeat offender) detection
+
+- **What:** Counts how often the current year appears in `history` text. If ≥ 3, write a warning into `notes`.
+- **Why:** No separate service-events table yet.
+- **Later:** Real dated service records and a clearer rule.
+
+---
+
+## Not finished / cut
+
+| Item | Note |
+|------|------|
+| AI “fix data” button (typos / dates) | Removed. Those findings are info-only. |
+| Ask-AI chat | Removed. Only the Inventory Auditor uses AI. |
+| Logout API / token revoke / refresh | Not built |
+| DB migrations / deploy setup | Manual DB reset only |
+| Password reset / invite emails | Out of scope (admins create accounts) |
+
+---
+
+## If we had one more day
+
+1. **GitHub Actions CI** — run backend pytest and frontend tests (and `npm run build`) on every PR so broken main is caught before merge.
+2. **Autonomous Inventory Auditor** — scheduled run with no admin clicks: safe findings auto-apply; notify admin for the rest.
+3. **Decision log** — store each AI action (device, finding, before/after) so autonomous changes are reviewable.
+
+---
+
+## AI development log
+
+How AI tools were used on this project — and where human judgment overrode them.
+
+### Tooling
+
+| Tool | Role |
+|------|------|
+| **Cursor** (Agent chat) | Main coding partner: scaffolding, refactors, tests, docs, security review prompts |
+| **Google Gemini** (early) | Extra help planning prompts and product decisions |
+| **OpenRouter** + OpenAI-compatible SDK | Final path for Inventory Auditor (`OPENROUTER_API_KEY`, models like `openai/gpt-4o-mini`) |
+
+### Data strategy
+
+- **Source of truth:** `backend/hardware_data.json` loaded by `seed.py` into SQLite on first start.
+- **Schema drift:** Renaming free-text “notes” into a real defect field (`issue`) plus a separate `notes` column broke old DBs (`no such column: devices.issue`). Fix was intentional: delete `hardware.db`, re-seed — not a silent AI migration.
+- **AI + data audit:** Seed data was rewritten so the auditor can be tested by hand — e.g. battery swelling on `Available`, brand typo `Appel`, future purchase dates, status `Unknown`, long `history` that must **not** create findings, lemon candidates, and **duplicate serials** (`SN-DUPLICATE-001` on two rows).
+- **What AI got wrong on data:** Early prompts let the model treat `history` as open defects (“history mentions past damage…”). That was wrong for the product. We tightened the system prompt (ignore `history` / `notes`) and checked the seed so empty-`issue` devices stay quiet.
+- **Takeaway:** AI is useful for inventing edge-case rows; a human still has to check field meaning (`issue` vs `notes` vs `history`) and that the seed matches the schema after every rename.
+
+### Prompt trail
+
+Curated history of the asks that shaped architecture and design:
+
+→ **[docs/AI_PROMPT_TRAIL.md](docs/AI_PROMPT_TRAIL.md)**
+
+(MVP → closed accounts → rental guards → dashboard → AI experiments → Inventory Auditor → `issue`/`notes` model → security hardening → tests.)
+
+### The “correction”
+
+AI proposed a login that returned a fake token `mock-token-{email}` with no verification on the API side. Admin endpoints were public; the UI only hid them. I caught this in a security review I requested via a prompt. We fixed it: signed sessions, FastAPI dependencies for user/admin, identity taken from the token, a strict role, and tests that run as a logged-in user.
+
+---
+
+## Folder layout
+
+```
+docs/
+  AI_PROMPT_TRAIL.md          # curated AI prompt history (architecture)
+backend/
+  main.py auth.py auditor.py models.py schemas.py security.py database.py seed.py
+  hardware_data.json test_*.py conftest.py pytest.ini
+  requirements.txt requirements-dev.txt .env.example
+frontend/
+  src/views/ components/ composables/ layouts/ stores/ services/ router/
+  package.json vite.config.js   # npm run test
 ```
 
-Aplikacja wystartuje na `http://localhost:5173` i komunikuje się z
-backendem pod adresem zdefiniowanym w `frontend/.env`
-(`VITE_API_URL=http://localhost:8000/api`).
+The Inventory Auditor UI file is still called `AiHealthCheck.vue` (old name); the screen title is **Inventory Auditor**.
 
-## Testy frontendu (Vitest)
+The frontend may call the API from `http://localhost:5173` or `http://127.0.0.1:5173`.
 
-```bash
-cd frontend
-npm install
-npm run test          # jednorazowy przebieg (CI-friendly)
-npm run test:watch    # watch mode podczas developmentu
-```
+Do not commit `backend/.env` or `hardware.db`.
 
-Testy (`jsdom` jako środowisko, `@vue/test-utils` do montowania komponentów)
-skupiają się na logice, którą realnie warto testować w izolacji od backendu:
-- `composables/useDeviceFilters.test.js` — filtrowanie (search/status/brand/
-  category), generowanie opcji, `hasActiveFilters`/`clearFilters`.
-- `composables/useRowHighlight.test.js` — scroll+highlight do wiersza,
-  automatyczne zanikanie po 2s, retry do 10 razy jeśli wiersz jeszcze nie
-  jest w DOM (fake timers).
-- `stores/auth.test.js` — sesja w `localStorage` (zapis/odczyt/rehydratacja
-  po przeładowaniu, `logout`/`clearSession`, rola `admin` vs `user`).
-- `services/api.test.js` — nagłówek `Authorization: Bearer <token>`,
-  czyszczenie sesji po 401, parsowanie komunikatów błędów (w tym listy
-  błędów walidacji 422 z FastAPI/Pydantic).
-- `components/StatusBadge.test.js` — mapowanie statusu na etykietę/styl,
-  w tym fallback dla nierozpoznanych/brakujących wartości.
-
-## Logowanie — system zamknięty (Closed System)
-
-Nie istnieje żadna rejestracja/self-service sign-up. Jedynym sposobem
-uzyskania dostępu do systemu jest utworzenie konta przez admina w zakładce
-**Admin Panel → Users**. Hasła są hashowane (`passlib` + `bcrypt`) i
-przechowywane w tabeli `users`; logowanie fizycznie porównuje hash w bazie.
-
-- **Admin (seed):** `demo@booksy.com` / `demo123` — pełny dostęp do
-  "Admin Panel".
-- **User (seed):** `user@booksy.com` / `user123` — zwykłe konto (rola
-  `user`), tworzone automatycznie przez `seed.py` do testów "Hardware List" /
-  "My Rentals" bez dostępu do panelu admina.
-- **Nowi użytkownicy:** admin tworzy konta w zakładce "Users" (pola Email,
-  Password oraz **Role** — `user` albo `admin`). Konta z rolą `user` mają
-  dostęp tylko do "Hardware List" i "My Rentals"; konta z rolą `admin` mają
-  pełny dostęp do "Admin Panel" (Hardware, Users, Inventory Auditor).
-
-Frontend waliduje domenę email (`@booksy.com`) po stronie klienta; backend
-dodatkowo weryfikuje to samo (przy logowaniu i przy tworzeniu konta) jako
-zabezpieczenie.
-
-## Autoryzacja i sesje (`backend/auth.py`)
-
-Logowanie (`POST /api/auth/login`) zwraca **podpisany, nie do podrobienia
-token sesji** (`itsdangerous.URLSafeTimedSerializer`, HMAC z
-`SESSION_SECRET_KEY`) — nie placeholder w stylu `f"mock-token-{email}"`.
-Frontend zapisuje go w `localStorage` (`stores/auth.js`) i wysyła w każdym
-żądaniu jako `Authorization: Bearer <token>` (`services/api.js`).
-
-**Każdy** endpoint odczytujący/zmieniający dane użytkownika lub sprzętu
-wymaga takiego tokenu po stronie backendu (`Depends(get_current_user)`), a
-endpointy administracyjne dodatkowo wymagają roli `admin`
-(`Depends(require_admin)`, HTTP 403 dla zalogowanego, ale nie-admina; HTTP
-401 dla braku/nieprawidłowego tokenu) — to nie jest już tylko ograniczenie
-na poziomie UI (router guard), ale realna kontrola po stronie serwera.
-Dotyczy to m.in. `/api/users` (GET/POST), pełnego CRUD `/api/devices`,
-`/api/devices/{id}/repair|restore`, `/api/auditor/run` i
-`/api/devices/{id}/resolve-issue`.
-
-**Rental Engine a tożsamość:** `POST /api/devices/{id}/rent` przypisuje
-urządzenie do adresu email **z tokenu** wywołującego, nigdy z ciała
-żądania — więc nie da się wypożyczyć sprzętu "na kogoś innego" edytując
-JSON. `POST /api/devices/{id}/return` dodatkowo sprawdza własność: zwykły
-użytkownik może zwrócić tylko urządzenie przypisane do siebie (403 w
-przeciwnym razie); admin może wymusić zwrot każdego urządzenia. `GET
-/api/rentals` nie przyjmuje już parametru `email` — zawsze zwraca
-wypożyczenia *wywołującego*, więc nie da się w ten sposób podglądać
-wypożyczeń innych osób (IDOR).
-
-`SESSION_SECRET_KEY` (`backend/.env`) to sekret do podpisywania tokenów —
-jeśli nie jest ustawiony, backend przy starcie generuje losowy, tymczasowy
-klucz (działa od razu, ale każdy restart procesu wylogowuje wszystkich).
-Wygeneruj stały klucz:
-
-```bash
-python -c "import secrets; print(secrets.token_hex(32))"
-```
-
-Tokeny wygasają po 8 godzinach (`auth.TOKEN_MAX_AGE_SECONDS`).
-
-## Rental Engine — twarda walidacja stanów (Guards)
-
-Statusy urządzenia: `Available` → (Rent) → `In Use` → (Return) → `Available`,
-oraz `Repair` jako stan wyłączony z wypożyczeń. Walidacja jest wymuszona
-**po stronie backendu**, nie tylko w UI:
-
-- `POST /api/devices/{id}/rent` — 409, jeśli urządzenie ma status `Repair`
-  lub `In Use`. W przeciwnym razie ustawia `In Use` i `assignedTo`.
-- `POST /api/devices/{id}/return` — 409, jeśli urządzenie nie ma statusu
-  `In Use`. W przeciwnym razie ustawia `Available` i czyści `assignedTo`.
-
-Przycisk w "Hardware List" jest dynamiczny: "Rent" (Available), "Return"
-(In Use i przypisane do zalogowanego użytkownika), lub disabled (Repair,
-albo In Use przypisane do kogoś innego).
-
-**Bezpieczeństwo przy równoczesnych żądaniach (race conditions):** guard nie
-jest osobnym `SELECT` + sprawdzeniem w Pythonie, a częścią jednego atomowego
-zapytania `UPDATE ... WHERE status = ...`. Dzięki temu, gdy dwie osoby klikną
-"Rent" na tym samym urządzeniu w tej samej chwili, tylko jedno żądanie
-rzeczywiście zmieni wiersz w bazie (0 zmienionych wierszy dla drugiego =
-odrzucenie z `409`) — bez tego zabezpieczenia druga osoba mogłaby po cichu
-nadpisać przypisanie pierwszej (obie dostałyby odpowiedź `200`, ale w bazie
-zostałaby tylko jedna z nich). Ten sam wzorzec (atomowy `UPDATE` z warunkiem
-w `WHERE` sprawdzającym, że kolumna(y) wciąż mają wartość odczytaną przed
-zapytaniem do AI) chroni też `POST /api/devices/{id}/resolve-issue`, gdzie
-okno na race jest jeszcze większe (trwa całe zapytanie przez OpenRouter).
-Zweryfikowane testem: 10 równoczesnych żądań "Rent"/"Return" na tym samym
-urządzeniu → zawsze dokładnie 1 sukces, reszta `409`.
-
-## Smart Dashboard — wyszukiwanie, filtrowanie, sortowanie
-
-Zarówno "Hardware List" jak i "Admin Panel → Hardware" mają pasek narzędzi
-nad tabelą: wyszukiwanie po nazwie/marce, filtr statusu (`All`, `Available`,
-`In Use`, `Repair`), filtr marki oraz filtr kategorii (`Category` — oba
-generowane dynamicznie z danych), z przyciskiem "Clear filters" widocznym,
-gdy jakiś filtr jest aktywny. W "Hardware List" nagłówki kolumn (Name,
-Brand, Category, Purchase Date) są klikalne i sortują tabelę
-rosnąco/malejąco (z ikoną strzałki wskazującą aktywne sortowanie). Logika
-filtrowania/sortowania działa po stronie frontendu.
-
-Tabela w "Admin Panel → Hardware" pokazuje dodatkowo kolumny `Assigned To`,
-`Issue`, `Notes` i `History` — długi tekst w ostatnich trzech zawija się, a
-po przekroczeniu ~10 linii przewija się wewnętrznie (nie rozciąga wiersza).
-
-## Endpointy API
-
-| Metoda | Ścieżka                        | Wymagana autoryzacja | Opis                                   |
-|--------|---------------------------------|-----------------------|-----------------------------------------|
-| POST   | `/api/auth/login`               | — (publiczny)         | Logowanie (weryfikacja hasha w DB), zwraca podpisany token |
-| GET    | `/api/users`                     | Admin                 | Lista kont użytkowników |
-| POST   | `/api/users`                     | Admin                 | Utworzenie nowego konta z rolą `user`/`admin` |
-| GET    | `/api/devices`                  | Zalogowany            | Lista urządzeń                          |
-| GET    | `/api/devices/{id}`             | Zalogowany            | Szczegóły urządzenia                    |
-| POST   | `/api/devices`                  | Admin                 | Dodanie urządzenia              |
-| PUT    | `/api/devices/{id}`             | Admin                 | Edycja urządzenia, w tym `issue`/`notes`/`history` |
-| DELETE | `/api/devices/{id}`             | Admin                 | Usunięcie urządzenia            |
-| PATCH  | `/api/devices/{id}/repair`      | Admin                 | Ustawienie statusu "Repair"     |
-| PATCH  | `/api/devices/{id}/restore`      | Admin                 | Przywrócenie z "Repair" do "Available" |
-| POST   | `/api/devices/{id}/rent`        | Zalogowany            | Wypożyczenie urządzenia na siebie (atomowy guard, nie z "Repair"/"In Use") |
-| POST   | `/api/devices/{id}/return`      | Zalogowany            | Zwrot urządzenia (atomowy guard, tylko z "In Use"; zwykły user tylko własnego, admin — każdego) |
-| GET    | `/api/rentals`                   | Zalogowany            | Lista wypożyczeń wywołującego (zawsze "moje", bez parametru `email`) |
-| GET    | `/api/auditor/run`                | Admin                 | Inventory Auditor — skan anomalii, zwraca kategorie/kafelki z `actionable` (OpenRouter) |
-| POST   | `/api/devices/{id}/resolve-issue` | Admin                 | "Create service history" — generuje wpis do historii, ustawia status "Repair", czyści `issue`, + Lemon detection (OpenRouter, atomowy guard) |
-| GET    | `/api/health`                     | — (publiczny)         | Health-check (status serwera)           |
-
-"Zalogowany" = wymaga poprawnego `Authorization: Bearer <token>`, ale
-dowolna rola (`user` lub `admin`). "Admin" = wymaga dodatkowo roli `admin`
-(403 dla zalogowanego, ale nie-admina). Zobacz sekcję [Autoryzacja i sesje](#autoryzacja-i-sesje-backendauthpy) powyżej.

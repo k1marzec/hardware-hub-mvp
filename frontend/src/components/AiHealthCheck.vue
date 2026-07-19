@@ -51,8 +51,8 @@ function removeIssue(issue) {
     .filter((category) => category.issues.length > 0)
 }
 
-// "Naprawa Sprzętu" / Predictive Maintenance: instead of just reporting the
-// anomaly, ask the AI to triage it and flip the device into a real repair
+// "Create service history" / Predictive Maintenance: instead of just reporting
+// the anomaly, ask the AI to triage it and flip the device into a real repair
 // workflow (status -> Repair, issue cleared, history stamped).
 async function resolveIssue(issue) {
   if (!issue.device_id || busyDeviceId.value) return
@@ -64,7 +64,7 @@ async function resolveIssue(issue) {
     removeIssue(issue)
     emit('resolved')
   } catch (err) {
-    issueError.value = err.message || 'Nie udało się zaplanować serwisu przez AI.'
+    issueError.value = err.message || 'Failed to create service history via AI.'
   } finally {
     busyDeviceId.value = null
   }
@@ -160,7 +160,7 @@ defineExpose({ runAudit })
                 <button
                   v-if="issue.device_id"
                   type="button"
-                  title="Znajdź w tabeli"
+                  title="Find in table"
                   class="rounded-lg p-1.5 text-indigo-400 hover:bg-indigo-50 hover:text-indigo-700"
                   @click="locateDevice(issue)"
                 >

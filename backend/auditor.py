@@ -9,7 +9,7 @@ Two entry points:
   optionally tied to a specific device via `device_id`). Issues that
   describe a real physical defect (an open `issue` field) are tagged
   `actionable: true` so the UI offers the "Create service history" action.
-- `resolve_device_issue` ("Naprawa Sprzętu" / Predictive Maintenance): given
+- `resolve_device_issue` ("Create service history" / Predictive Maintenance): given
   a single device's `issue` description, asks the model for a short,
   professional history entry describing the triage/repair ticket (no
   estimated repair time - just what happened). Used by the "Create service
