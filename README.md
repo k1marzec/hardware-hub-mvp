@@ -4,6 +4,8 @@ App for managing company hardware: rent devices, admin panel, user roles, and an
 
 **Tech:** Python/FastAPI, SQLite · Vue 3, Vite, Tailwind · OpenRouter
 
+**Live demo:** [Frontend] ([https://hardwarehubfront-production.up.railway.app](https://hardwarehubfront-production.up.railway.app)) 
+
 ---
 
 ## Quick start
@@ -80,7 +82,10 @@ Optional (rarely needed):
 | **Filters & sort**    | Search + filters by status / brand / category on Hardware List and Admin → Hardware. Clickable column sort only on Hardware List.                                    |
 | **Inventory Auditor** | AI scans the inventory for problems (e.g. available but broken, bad dates, brand typos, duplicate serial numbers). Useful items show **Create service history**.     |
 | **Service history**   | That button writes an AI history note, sets status to `Repair`, clears `issue`. If the device was serviced 3+ times this year, a warning is stored in `notes`.       |
-| **Tests**             | Backend: 76 pytest tests on `main.py` and `auditor.py` (AI is mocked). Frontend: Vitest for filters, row highlight, auth store, API helper, StatusBadge. |
+| **Tests**             | Backend: 76 pytest tests on `main.py` and `auditor.py` (AI is mocked). Frontend: Vitest for filters, row highlight, auth store, API helper, StatusBadge.             |
+
+
+
 
 ### Device statuses
 
@@ -120,6 +125,8 @@ cd frontend && npm run test
 
 ---
 
+
+
 ## Shortcuts we took (and why)
 
 Things built the simple way for this MVP.
@@ -130,11 +137,15 @@ Things built the simple way for this MVP.
 - **Why:** Real login checks on the server without a full JWT / cookie setup.
 - **Later:** Shorter-lived tokens, secure cookies, refresh tokens, forced logout.
 
+
+
 ### 2. SQLite file, no migrations
 
 - **What:** One local database file. Schema changes mean delete the DB and re-seed.
 - **Why:** Easy local demo. Seed data covers many edge cases.
 - **Later:** Proper migrations; a bigger database (e.g. Postgres) if needed.
+
+
 
 ### 3. Filters and sort in the browser
 
@@ -142,17 +153,23 @@ Things built the simple way for this MVP.
 - **Why:** Small inventory; keeps the API simple.
 - **Later:** Filtering/sorting/pagination on the server when the list gets large.
 
+
+
 ### 4. Missing session secret
 
 - **What:** If `SESSION_SECRET_KEY` is empty, the server makes a random one at start. Restart logs everyone out.
 - **Why:** App still runs for a first demo with almost no setup.
 - **Later:** Require the secret in production.
 
+
+
 ### 5. AI does most of the audit
 
 - **What:** One AI call returns a JSON report. Extra Python code cleans up messy answers.
 - **Why:** Quick Inventory Auditor feature; easy to change models via OpenRouter.
 - **Later:** Hard checks in code for duplicates/dates/statuses; use AI mainly for free-text issues.
+
+
 
 ### 6. “Lemon” (repeat offender) detection
 
@@ -162,17 +179,23 @@ Things built the simple way for this MVP.
 
 ---
 
+
+
 ## Not finished / cut
 
-| Item | Note |
-|------|------|
-| AI “fix data” button (typos / dates) | Removed. Those findings are info-only. |
-| Ask-AI chat | Removed. Only the Inventory Auditor uses AI. |
-| Logout API / token revoke / refresh | Not built |
-| DB migrations / deploy setup | Manual DB reset only |
-| Password reset / invite emails | Out of scope (admins create accounts) |
+
+| Item                                 | Note                                         |
+| ------------------------------------ | -------------------------------------------- |
+| AI “fix data” button (typos / dates) | Removed. Those findings are info-only.       |
+| Ask-AI chat                          | Removed. Only the Inventory Auditor uses AI. |
+| Logout API / token revoke / refresh  | Not built                                    |
+| DB migrations / deploy setup         | Manual DB reset only                         |
+| Password reset / invite emails       | Out of scope (admins create accounts)        |
+
 
 ---
+
+
 
 ## If we had one more day
 
@@ -182,17 +205,23 @@ Things built the simple way for this MVP.
 
 ---
 
+
+
 ## AI development log
 
 How AI tools were used on this project — and where human judgment overrode them.
 
 ### Tooling
 
-| Tool | Role |
-|------|------|
-| **Cursor** (Agent chat) | Main coding partner: scaffolding, refactors, tests, docs, security review prompts |
-| **Google Gemini** (early) | Extra help planning prompts and product decisions |
+
+| Tool                                   | Role                                                                                      |
+| -------------------------------------- | ----------------------------------------------------------------------------------------- |
+| **Cursor** (Agent chat)                | Main coding partner: scaffolding, refactors, tests, docs, security review prompts         |
+| **Google Gemini** (early)              | Extra help planning prompts and product decisions                                         |
 | **OpenRouter** + OpenAI-compatible SDK | Final path for Inventory Auditor (`OPENROUTER_API_KEY`, models like `openai/gpt-4o-mini`) |
+
+
+
 
 ### Data strategy
 
@@ -202,19 +231,23 @@ How AI tools were used on this project — and where human judgment overrode the
 - **What AI got wrong on data:** Early prompts let the model treat `history` as open defects (“history mentions past damage…”). That was wrong for the product. We tightened the system prompt (ignore `history` / `notes`) and checked the seed so empty-`issue` devices stay quiet.
 - **Takeaway:** AI is useful for inventing edge-case rows; a human still has to check field meaning (`issue` vs `notes` vs `history`) and that the seed matches the schema after every rename.
 
+
+
 ### Prompt trail
 
 Curated history of the asks that shaped architecture and design:
 
 → **[docs/AI_PROMPT_TRAIL.md](docs/AI_PROMPT_TRAIL.md)**
 
-(MVP → closed accounts → rental guards → dashboard → AI experiments → Inventory Auditor → `issue`/`notes` model → security hardening → tests.)
+(MVP → closed accounts → rental guards → dashboard → Inventory Auditor → `issue`/`notes` model → security hardening → tests.)
 
 ### The “correction”
 
 AI proposed a login that returned a fake token `mock-token-{email}` with no verification on the API side. Admin endpoints were public; the UI only hid them. I caught this in a security review I requested via a prompt. We fixed it: signed sessions, FastAPI dependencies for user/admin, identity taken from the token, a strict role, and tests that run as a logged-in user.
 
 ---
+
+
 
 ## Folder layout
 
@@ -229,10 +262,4 @@ frontend/
   src/views/ components/ composables/ layouts/ stores/ services/ router/
   package.json vite.config.js   # npm run test
 ```
-
-The Inventory Auditor UI file is still called `AiHealthCheck.vue` (old name); the screen title is **Inventory Auditor**.
-
-The frontend may call the API from `http://localhost:5173` or `http://127.0.0.1:5173`.
-
-Do not commit `backend/.env` or `hardware.db`.
 
